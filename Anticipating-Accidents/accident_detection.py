@@ -1,63 +1,5 @@
-import cv2
-import argparse
-import numpy as np
-import os
-import pdb
-import time
-import matplotlib.pyplot as plt
-import sys
-
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-
-from torch.utils import data
-from torchvision import transforms
-from torchvision.datasets import ImageFolder
-
-############### Global Parameters ###############
-# path
-train_path = './dataset/features/training/'
-test_path = './dataset/features/testing/'
-demo_path = './dataset/features/testing/'
-default_model_path = './model/demo_model'
-save_path = './model/'
-video_path = './dataset/videos/testing/positive/'
-# batch_number
-train_num = 126
-test_num = 46
-
-
-############## Train Parameters #################
-
-# Parameters
-learning_rate = 0.0001
-n_epochs = 30
-batch_size = 10
-display_step = 10
-
-# Network Parameters
-n_input = 4096  # fc6 or fc7(1*4096)
-n_detection = 20  # number of object of each image (include image features)
-n_hidden = 512  # hidden layer num of LSTM
-n_img_hidden = 256  # embedding image features
-n_att_hidden = 256  # embedding object features
-n_classes = 2  # has accident or not
-n_frames = 100  # number of frame in each video
-##################################################
-
-
-def parse_args():
-    """Parse input arguments."""
-    parser = argparse.ArgumentParser(description='accident_LSTM')
-    parser.add_argument('--mode', dest='mode',
-                        help='train or test', default='demo')
-    parser.add_argument('--model', dest='model', default=default_model_path)
-    parser.add_argument('--gpu', dest='gpu', default='0')
-    args = parser.parse_args()
-
-    return args
 
 
 """
@@ -82,10 +24,13 @@ Implementation Details:
     - but if some objects are not visible and their pixels are all
         blacked out, then why do we need to use the post-transformation
         mask to zero everything out?
+- paper applies mask after softmax... doesn't this break the law of total
+  probability? Shouldn't we mask out nonexistent objects before the softmax?
 
 TODO:
 - look at what the input features X look like: just imshow them
 - finish loss function
+- onehot_to_binary?????
 """
 
 
@@ -101,27 +46,34 @@ class Fattn(nn.Module):
         Returns:
             [type]: [description]
         """
+        super().__init__()
         # linear transform of previous hidden state
-        self.hidden_lin = nn.Linear(
-            self.lstm_hidden_dim, self.obj_feat_dim, bias=False)
-        self.joint_lin = nn.Linear(
-            self.obj_feat_dim, 1, bias=False)
+        self._lstm_hidden_dim = lstm_hidden_dim
+        self._obj_feat_dim = obj_feat_dim
+        self.hidden_linear = nn.Linear(
+            self._lstm_hidden_dim, self._obj_feat_dim, bias=False)
+        self.combined_linear = nn.Linear(
+            self._obj_feat_dim, 1, bias=False)
 
     def forward(self, a, hprev, mask):
         """[summary]
 
         Args:
-            a (Tensor): (B x K-1 x obj_feat_dim)
+            a (Tensor): (B x K-1 x obj_feat_dim) feature vecs of diff objs
             hprev (Tensor): (B x lstm_hidden_dim)
-            mask (Tensor): (B x K-1 x 1)
+            mask (Tensor): (B x K-1)
         """
+        # possibly perform some transform here to combine all hidden layer units
+        hprev = torch.squeeze(hprev)
         # (B x K-1 x obj_feat_dim)
-        e = torch.tanh(self.hidden_lin(hprev) + a)
-        # (B x K-1 x obj_feat_dim) -> (B x K-1 x 1)
-        alphas = self.joint_lin(e)
+        hprime = torch.unsqueeze(self.hidden_linear(hprev), 1)
+        e = torch.tanh(hprime + a)
+        # (B x K-1 x obj_feat_dim) -> (B x K-1)
+        alphas = self.combined_linear(e)
         # calculate probability/importance of each K-1 object
         # mask out any features that are non-existent
-        alphas = torch.softmax(torch.multiply(alphas, mask), dim=-1)
+        # alphas = torch.softmax(torch.multiply(alphas, mask), dim=-1)
+        alphas = torch.mul(torch.softmax(alphas, dim=-1), mask)
         return alphas
 
 
@@ -136,26 +88,28 @@ class AccidentDetection(nn.Module):
             img_feat_dim (int): size of processed image feature
             obj_feat_dim (int): size of processed object feature
         """
+        super().__init__()
         self._img_dim = img_dim
         self._obj_dim = img_dim  # entire image masked out except for object
         self._n_hidden_layers = n_hidden_layers
         self._img_feat_dim = img_feat_dim
         self._obj_feat_dim = obj_feat_dim
-        self._obj_feat_dim2 = obj_feat_dim  # after 2nd linear
         self._lstm_hidden_dim = lstm_hidden_dim
+        self._num_dir = 1  # num directions, 2 if bidirectional
+        self._num_hidden_states = self._num_dir * self._n_hidden_layers
 
         self._img_to_feat = nn.Linear(self._img_dim, self._img_feat_dim)
         self._obj_to_feat = nn.Linear(self._obj_dim, self._obj_feat_dim)
-        self._obj_to_feat2 = nn.Linear(self._obj_feat_dim, self._obj_feat_dim2)
+        self._obj_to_feat2 = nn.Linear(self._obj_feat_dim, self._img_feat_dim)
         # probability of accident
-        self._out_to_pred = nn.Linear(self._n_hidden_layers, 1)
+        self._out_to_pred = nn.Linear(self._lstm_hidden_dim, 1)
         self._lstm = nn.LSTM(
             input_size=self._img_feat_dim + self._obj_feat_dim,
             hidden_size=self._lstm_hidden_dim,
             num_layers=self._n_hidden_layers,
-            batch_first=True,
+            batch_first=False,
             dropout=lstm_dropout)
-        self._fattn = Fattn(self._lstm_hidden_dim, self._obj_to_feat2)
+        self._fattn = Fattn(self._lstm_hidden_dim, self._img_feat_dim)
 
     def forward(self, x):
         """Forward pass
@@ -178,7 +132,7 @@ class AccidentDetection(nn.Module):
         obj_mask = torch.sum(x[:, :, 1:], dim=-1, keepdim=True)
 
         # transform full image input vec into img feature
-        # (B x N x 1 x D_i)
+        # (B x N x D_i)
         img_feat = self._img_to_feat(x[:, :, 0, :])
 
         # transform each obj input vec into obj feature
@@ -187,43 +141,57 @@ class AccidentDetection(nn.Module):
 
         # mask out any obj features where obj isn't present
         # (B x N x K-1, D_o) = (B x N x K-1 x D_o) * (B x N x K-1 x 1) < brdcst
-        obj_feat = torch.multiply(obj_feat, obj_mask)
+        obj_feat = torch.mul(obj_feat, obj_mask)
         # 2nd affine transform
-        # (B x N x K-1, D_o) -> (B x N x K-1, D_o2)
-        obj_feat = self.__obj_to_feat2(obj_feat)
+        # (B x N x K-1, D_o) -> (B x N x K-1, D_i)
+        obj_feat = self._obj_to_feat2(obj_feat)
 
         # intialize LSTM hidden state and
-        hidden_state = torch.zeros((B, self._lstm_hidden_dim))
-        prev_output = torch.zeros((B, self._lstm_hidden_dim))
+        hidden_state = torch.zeros(
+            (self._num_hidden_states, B, self._lstm_hidden_dim))
+        cell_state = torch.zeros(
+            (self._num_hidden_states, B, self._lstm_hidden_dim))
+        prev_output = torch.zeros((1, B, self._lstm_hidden_dim))
 
         # track all info
         all_alphas = []
         all_predictions = []
 
         for fi in range(N):
-            # (B)
+            # (B x K-1 x D_i)
             cur_obj_feat = obj_feat[:, fi, :, :]
+            # (B x D_i)
             cur_img_feat = img_feat[:, fi, :]
+            # (B x K-1 x 1)
             cur_obj_mask = obj_mask[:, fi, :]
 
+            # (B x K-1)
             alphas = self._fattn(cur_obj_feat, prev_output, cur_obj_mask)
             # weighted each object feature by its attention alphas
-            w_obj_feat = torch.multiply(cur_obj_feat, alphas)
+            # (B x K-1 x D_i)
+            w_obj_feat = torch.mul(cur_obj_feat, alphas)
             # sum up all K-1 features to produce weighted sum
-            w_obj_feat = torch.sum(w_obj_feat, dim=2)
+            # (B x D_i)
+            w_obj_feat = torch.sum(w_obj_feat, dim=1)
 
-            fusion = torch.cat([cur_img_feat, w_obj_feat], dim=0)
-            prev_output, hidden_state = self._lstm(fusion, hidden_state)
+            # (B x 2*D_i)
+            fusion = torch.cat([cur_img_feat, w_obj_feat], dim=1)
+            # (1 x B x 2*D_i) since lstm takes (seq_len, batch, input_size)
+            fusion = torch.unsqueeze(fusion, dim=0)
+            prev_output, (hidden_state, cell_state) = self._lstm(
+                fusion, (hidden_state, cell_state))
+
+            # possible combine sequence of outputs
+            prev_output = torch.squeeze(prev_output, dim=0)
+
+            # (B x H)
             logits = self._out_to_pred(prev_output)
-            predictions = torch.softmax(logits, dim=1)
+            # predictions = torch.softmax(logits, dim=1)
+            predictions = logits  # just use logits directly
 
             # save all outputs
             all_alphas.append(alphas)
             all_predictions.append(predictions)
 
+        all_predictions = torch.cat(all_predictions, dim=1)
         return all_alphas, all_predictions
-
-
-def calc_loss(predictions, labels):
-    # TODO
-    return

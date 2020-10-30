@@ -1,0 +1,16 @@
+############## File Paths #################
+root: "/Users/Alvin/Documents/School/class_assignments/18794/project/Accident_Prediction/Anticipating-Accidents"
+train_path: "dataset/features/training"
+test_path: "dataset/features/testing"
+demo_path: "dataset/features/testing"
+video_path: "dataset/videos/testing/positive"
+save_path: "models"
+
+############## Train Parameters #################
+# Predefined constants (DO NOT CHANGE)
+img_dim: 4096
+n_hidden_layers: 2  # number of hidden layers in LSTM
+hidden_feat_dim: 256   # dimension of hidden state in lSTM
+lstm_dropout: 0.5  # dropout proportion  of outputs of each LSTM layer
+img_feat_dim: 256  # dimension of final image and object features
+obj_feat_dim: 256  # dimension of intermediary object features
