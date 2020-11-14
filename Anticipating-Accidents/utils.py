@@ -4,8 +4,6 @@ import argparse
 def parse_arguments():
     # Command-line flags are defined here.
     parser = argparse.ArgumentParser()
-    parser.add_argument('--print_to_file', dest='print_to_file', type=bool,
-                        default=True, help="Whether to save printout to file")
     parser.add_argument('--num_epochs', dest='num_epochs', type=int,
                         default=10, help="Number of epochs to train on.")
     parser.add_argument('--lr', dest='lr', type=float,
@@ -14,5 +12,8 @@ def parse_arguments():
                         default="", help="Optionally load an existing model")
     parser.add_argument('--train', dest='train', action='store_true',
                         help="Whether to train or run demo")
-    parser.set_defaults(train=True)
+    parser.add_argument('--print_to_file', dest='print_to_file',
+                        action='store_true', help="Whether to save printout to file")
+    parser.set_defaults(train=False)
+    parser.set_defaults(print_to_file=False)
     return parser.parse_args()

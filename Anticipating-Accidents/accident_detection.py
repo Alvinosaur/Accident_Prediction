@@ -5,7 +5,7 @@ import torch.nn as nn
 """
 Possible architecture changes:
 - process k frames at a time, not just 1 frame
-- bidirectional 
+- bidirectional
 - apply MLP's to features, not just affine transformation
 - change to not have preset number of objects, handle any N objects
 - play with LSTM params, or variants (ex: GRU)
@@ -27,17 +27,45 @@ Implementation Details:
 - paper applies mask after softmax... doesn't this break the law of total
   probability? Shouldn't we mask out nonexistent objects before the softmax?
 
-TODO:
-- look at what the input features X look like: just imshow them
-- finish loss function
-- onehot_to_binary?????
+Possible Bugs:
+- try with no frame weights
+- try alphas = torch.softmax(torch.multiply(alphas, mask), dim=1) line 104
+- prev_output, (hidden_state, cell_state) = self._lstm(
+                fusion, (hidden_state, cell_state))
+
 """
+
+
+class AccidentLoss(object):
+    def __init__(self, n_frames, device):
+        self.n_frames = n_frames
+        pos_weights = torch.exp(
+            - torch.arange(self.n_frames - 1, -1, -1) / 20.0).view(-1, 1)
+        neg_weights = torch.ones((n_frames, 1))
+        # (n_frames x 2)
+        self.frame_weights = torch.cat([neg_weights, pos_weights], dim=1)
+        self.frame_weights = self.frame_weights.to(device)
+        self.frame_weights.requires_grad = False
+        self.log_softmax = torch.nn.LogSoftmax(dim=2)
+        self.nll_loss = torch.nn.NLLLoss()
+
+    def __call__(self, logits, labels):
+        # (n_frames x B x 2)
+        loss = self.log_softmax(logits)
+        # (n_frames x B x 2) multiply each frame's outputs with specific weight
+        loss = torch.mul(self.frame_weights, loss)
+        # (n_frames*B x 2) following NLLLoss's expected input of (minibatch, C)
+        loss = loss.view(-1, 2)
+        labels = labels.view(-1)
+        # compute average loss over all frames of entire batch
+        loss = self.nll_loss(loss, labels)
+        return loss
 
 
 class Fattn(nn.Module):
     def __init__(self, lstm_hidden_dim, obj_feat_dim):
-        """Calculates alpha = softmax(f_attn(h_t-1, a_t)), which 
-        assigns 
+        """Calculates alpha = softmax(f_attn(h_t-1, a_t)), which
+        assigns
 
         Args:
             lstm_hidden_dim ([type]): [description]
@@ -65,22 +93,26 @@ class Fattn(nn.Module):
         """
         # possibly perform some transform here to combine all hidden layer units
         hprev = torch.squeeze(hprev)
-        # (B x K-1 x obj_feat_dim)
+        # (B x 1 x obj_feat_dim)
         hprime = torch.unsqueeze(self.hidden_linear(hprev), 1)
         e = torch.tanh(hprime + a)
-        # (B x K-1 x obj_feat_dim) -> (B x K-1)
+        # (B x K-1 x obj_feat_dim) -> (B x K-1 x 1)
         alphas = self.combined_linear(e)
         # calculate probability/importance of each K-1 object
         # mask out any features that are non-existent
-        # alphas = torch.softmax(torch.multiply(alphas, mask), dim=-1)
-        alphas = torch.mul(torch.softmax(alphas, dim=-1), mask)
+        # alphas = torch.softmax(torch.multiply(alphas, mask), dim=1)
+        alphas = torch.mul(torch.softmax(alphas, dim=1), mask)
+        # assert(torch.sum(alphas, axis=1) == ones)
+        # probability of each obj feature should sum to 1 for a batch
+        # but after post-multiplying by mask, this isn't true anymore
         return alphas
 
 
 class AccidentDetection(nn.Module):
-    def __init__(self, img_dim, n_hidden_layers, img_feat_dim, obj_feat_dim, lstm_hidden_dim, lstm_dropout=0):
-        """Main module encapsulating accident detection pipeline. Given a 
-        video sequence of images, processes one frame at a time. 
+    def __init__(self, img_dim, n_hidden_layers, img_feat_dim, obj_feat_dim, lstm_hidden_dim, device, lstm_dropout=0):
+        """Main module encapsulating accident detection pipeline. Given a
+        video sequence of images, processes one frame at a time. Output for a
+        given frame is a (1 x 2) [1-p(accident), p(accident)].
 
         Args:
             img_dim (int): size of flattened image
@@ -97,12 +129,13 @@ class AccidentDetection(nn.Module):
         self._lstm_hidden_dim = lstm_hidden_dim
         self._num_dir = 1  # num directions, 2 if bidirectional
         self._num_hidden_states = self._num_dir * self._n_hidden_layers
+        self.device = device
 
         self._img_to_feat = nn.Linear(self._img_dim, self._img_feat_dim)
         self._obj_to_feat = nn.Linear(self._obj_dim, self._obj_feat_dim)
         self._obj_to_feat2 = nn.Linear(self._obj_feat_dim, self._img_feat_dim)
-        # probability of accident
-        self._out_to_pred = nn.Linear(self._lstm_hidden_dim, 1)
+        # output = [1-prob(accident), prob(accident)]
+        self._out_to_pred = nn.Linear(self._lstm_hidden_dim, 2)
         self._lstm = nn.LSTM(
             input_size=self._img_feat_dim + self._obj_feat_dim,
             hidden_size=self._lstm_hidden_dim,
@@ -129,7 +162,10 @@ class AccidentDetection(nn.Module):
         # isn't present
         # no mask for first of K since that represents entire image, not an obj
         # (B x N x K-1 x 1)
+        zeros = torch.zeros((B, N, K - 1, 1)).to(self.device)
         obj_mask = torch.sum(x[:, :, 1:], dim=-1, keepdim=True)
+        obj_mask = torch.isclose(obj_mask, zeros, atol=1e-06)
+        obj_mask = (obj_mask != True).float()
 
         # transform full image input vec into img feature
         # (B x N x D_i)
@@ -148,10 +184,11 @@ class AccidentDetection(nn.Module):
 
         # intialize LSTM hidden state and
         hidden_state = torch.zeros(
-            (self._num_hidden_states, B, self._lstm_hidden_dim))
+            (self._num_hidden_states, B, self._lstm_hidden_dim)).to(self.device)
         cell_state = torch.zeros(
-            (self._num_hidden_states, B, self._lstm_hidden_dim))
-        prev_output = torch.zeros((1, B, self._lstm_hidden_dim))
+            (self._num_hidden_states, B, self._lstm_hidden_dim)).to(self.device)
+        prev_output = torch.zeros(
+            (1, B, self._lstm_hidden_dim)).to(self.device)
 
         # track all info
         all_alphas = []
@@ -187,11 +224,12 @@ class AccidentDetection(nn.Module):
             # (B x H)
             logits = self._out_to_pred(prev_output)
             # predictions = torch.softmax(logits, dim=1)
-            predictions = logits  # just use logits directly
+            predictions = logits  # CrossEntropyLoss already applies LogSoftmax
 
             # save all outputs
             all_alphas.append(alphas)
             all_predictions.append(predictions)
 
-        all_predictions = torch.cat(all_predictions, dim=1)
+        # (N x B x 2) --> (B x N x 2)
+        all_predictions = torch.stack(all_predictions).transpose(1, 0)
         return all_alphas, all_predictions

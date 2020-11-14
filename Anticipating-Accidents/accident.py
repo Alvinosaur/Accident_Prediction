@@ -39,7 +39,7 @@ n_classes = 2  # has accident or not
 n_frames = 100  # number of frame in each video
 ##################################################
 
-
+tf.enable_eager_execution()
 def parse_args():
     """Parse input arguments."""
     parser = argparse.ArgumentParser(description='accident_LSTM')
@@ -52,12 +52,12 @@ def parse_args():
     return args
 
 
-def build_model():
+def build_model(x, y, keep):
     # tf Graph input
     # n_input = 4096 = 64 x 64 image frames?
-    x = tf.placeholder("float", [None, n_frames, n_detection, n_input])
-    y = tf.placeholder("float", [None, n_classes])
-    keep = tf.placeholder("float", [None])
+    # x = tf.placeholder("float", [None, n_frames, n_detection, n_input])
+    # y = tf.placeholder("float", [None, n_classes])
+    # keep = tf.placeholder("float", [None])
 
     # Define weights
     weights = {
@@ -103,7 +103,7 @@ def build_model():
         with tf.variable_scope('model', reuse=tf.AUTO_REUSE):
             # input features (Faster-RCNN fc7)
             # permute n_steps and batch_size (n x b x h)
-            X = tf.transpose(x[:, i, :, :], [1, 0, 2])
+            X = tf.cast(tf.transpose(x[:, i, :, :], [1, 0, 2], ), tf.float32)
             # frame embedded
             image = tf.matmul(X[0, :, :], weights['em_img']) + \
                 biases['em_img']  # 1 x b x h
@@ -155,6 +155,7 @@ def build_model():
                 all_alphas = tf.concat([all_alphas, temp_alphas], 0)
 
             # positive example (exp_loss)
+            # assume accident always at (n_frames - 1)th index
             pos_loss = -tf.multiply(tf.exp(-(n_frames - i - 1) / 20.0),
                                     -tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y))
             # negative example
@@ -175,7 +176,6 @@ def build_model():
 
 def train():
     # build model
-    x, keep, y, optimizer, loss, lstm_variables, soft_pred, all_alphas = build_model()
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.2)
     sess = tf.InteractiveSession(config=tf.ConfigProto(
         allow_soft_placement=True, gpu_options=gpu_options))
@@ -185,24 +185,25 @@ def train():
     # Initializing the variables
     init = tf.global_variables_initializer()
     # Launch the graph
-    sess.run(init)
-    saver = tf.train.Saver(max_to_keep=100)
+    # sess.run(init)
+    # saver = tf.train.Saver(max_to_keep=100)
     # Keep training until reach max iterations
     # start training
     for epoch in range(n_epochs):
         # random chose batch.npz
         epoch_loss = np.zeros((train_num, 1), dtype=float)
         n_batchs = np.arange(1, train_num + 1)
-        np.random.shuffle(n_batchs)
+        # np.random.shuffle(n_batchs)
         tStart_epoch = time.time()
         for batch in n_batchs:
-            file_name = '%03d' % batch
+            file_name = '%03d' % 109
             batch_data = np.load(train_path + 'batch_' + file_name + '.npz')
             batch_xs = batch_data['data']
             batch_ys = batch_data['labels']
-            _, batch_loss = sess.run([optimizer, loss], feed_dict={
-                                     x: batch_xs, y: batch_ys, keep: [0.5]})
-            epoch_loss[batch - 1] = batch_loss / batch_size
+            # _, batch_loss = sess.run([optimizer, loss], feed_dict={
+            #                          x: batch_xs, y: batch_ys, keep: [0.5]})
+            build_model(batch_xs, batch_ys, [0.5])
+            # epoch_loss[batch - 1] = batch_loss / batch_size
         # print one epoch
         print("Epoch:", epoch + 1, " done. Loss:", np.mean(epoch_loss))
         tStop_epoch = time.time()
@@ -444,8 +445,8 @@ if __name__ == '__main__':
     else:
         os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
-    vis("./demo_model/demo_model")
-    # train()
+    # vis("./demo_model/demo_model")
+    train()
     # if args.mode == 'train':
     #     train()
     # elif args.mode == 'test':

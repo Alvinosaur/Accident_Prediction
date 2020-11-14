@@ -13,13 +13,6 @@ def init_weights(m):
             m.bias.data.fill_(0.01)
 
 
-def onehot_to_binary(batch_ys: np.ndarray):
-    # (2 x 1)
-    has_accident = np.array([[0], [1]])
-    # (B x 2)(2 x 1) = (B x 1)
-    return batch_ys @ has_accident
-
-
 def train_epoch(model, loss_fn, files, batch_indices,
                 optimizer, device):
     model.train()
@@ -29,15 +22,22 @@ def train_epoch(model, loss_fn, files, batch_indices,
         batch_data = np.load(files[batch_i])
         batch_xs = torch.Tensor(batch_data['data']).to(device)
 
-        n_frames = batch_xs.shape[1]
-        batch_ys = onehot_to_binary(batch_data['labels'])
-        batch_ys = np.tile(batch_ys, (1, n_frames))
-        batch_ys = torch.Tensor(batch_ys).to(device)
+        batch_size, n_frames = batch_xs.shape[0:2]
+        # accident: [0, 1]  -->  class = 1
+        # no accident: [1, 0]  --> class = 0
+        # model output = [1-p(accident), p(accident)]
+        batch_ys = torch.Tensor(batch_data['labels'][:, 1]).long().to(device)
+        batch_ys = batch_ys.unsqueeze(0)
+        # (N x B x 1)
+        batch_ys = batch_ys.repeat(n_frames, 1, 1)
 
         optimizer.zero_grad()   # .backward() accumulates gradients
 
-        alphas, logits = model(batch_xs)
-        loss = loss_fn(logits, batch_ys)
+        alphas, predictions = model(batch_xs)
+        # weights = exp(-(N-1, N-2, ...0)) = exp(1-N), exp(2-N), ... 1
+        # so last frame has the most weight since data is set up so last frame
+        # has accident
+        loss = loss_fn(predictions, batch_ys)
         loss.backward()
         optimizer.step()
         avg_loss += loss.item()
@@ -54,7 +54,13 @@ def eval_model(model, loss_fn, files, device):
         for fname in files:
             batch_data = np.load(fname)
             batch_xs = torch.Tensor(batch_data['data']).to(device)
-            batch_ys = torch.Tensor(batch_data['labels']).to(device)
+
+            batch_size, n_frames = batch_xs.shape[0:2]
+            batch_ys = torch.Tensor(
+                batch_data['labels'][:, 1]).long().to(device)
+            batch_ys = batch_ys.unsqueeze(0)
+            # (N x B x 1)
+            batch_ys = batch_ys.repeat(n_frames, 1, 1)
 
             alphas, logits = model(batch_xs)
             loss = loss_fn(logits, batch_ys).detach()
@@ -80,7 +86,7 @@ def train_model(model, optimizer, scheduler, loss_fn, progress_dir,
         print("\n========== Epoch {} ==========".format(epoch))
 
         # shuffle train dataset
-        np.random.shuffle(batch_indices)
+        # np.random.shuffle(batch_indices)
 
         # Train
         train_loss = train_epoch(model, loss_fn, train_files, batch_indices,
@@ -104,4 +110,6 @@ def train_model(model, optimizer, scheduler, loss_fn, progress_dir,
         torch.save(checkpoint, os.path.join(progress_dir, unique_name))
 
         tend = time.time()
-        print("Epoch %d Elapsed Time: %.2fs" % (epoch, tend - tstart))
+        print("Epoch: %d, Train Loss: %.3f, Val loss: %.3f, Elapsed Time: %.2fs" % (
+            epoch, float(train_loss), float(val_loss), tend - tstart),
+            flush=True)

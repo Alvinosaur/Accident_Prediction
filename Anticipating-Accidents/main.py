@@ -9,12 +9,13 @@ import yaml
 import torch
 import torch.optim
 
-from accident_detection import AccidentDetection
+from accident_detection import AccidentDetection, AccidentLoss
 import model_utils
 import utils
 
 if __name__ == "__main__":
     args = utils.parse_arguments()
+    # args = Arguments()
     with open("params.yaml") as f:
         params = yaml.load(f)
 
@@ -23,10 +24,11 @@ if __name__ == "__main__":
         params["root"], params["save_path"], "%d" % timestamp)
     if not os.path.exists(progress_dir):
         os.mkdir(progress_dir)
+    print(args, flush=True)
     if args.print_to_file:
         sys.stdout = open(os.path.join(progress_dir, "output.txt"), "w")
-    print("Params: %s" % str(params))
-    print("Args: %s" % str(args))
+    print("Params: %s" % params, flush=True)
+    print("Args: %s" % args, flush=True)
 
     train_dir = os.path.join(params["root"], params["train_path"])
     train_files = [os.path.join(train_dir, f) for f in os.listdir(train_dir)]
@@ -49,10 +51,14 @@ if __name__ == "__main__":
         img_feat_dim=params["img_feat_dim"],
         obj_feat_dim=params["obj_feat_dim"],
         lstm_hidden_dim=params["hidden_feat_dim"],
-        lstm_dropout=params["lstm_dropout"])
+        lstm_dropout=params["lstm_dropout"],
+        device=device)
+    model = model.to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, "min")
-    loss_fn = torch.nn.BCEWithLogitsLoss()
+
+    n_frames = params["n_frames"]
+    loss_fn = AccidentLoss(n_frames, device)
 
     # optionally load from some previous checkpoint
     if args.model_path != "":
@@ -66,7 +72,7 @@ if __name__ == "__main__":
 
     if args.train:
         model_utils.train_model(model, optimizer, scheduler, loss_fn,
-                                progress_dir, train_files, eval_files,
+                                progress_dir, train_files[:1], train_files[:1],
                                 args.num_epochs, device)
     else:
         # run demo

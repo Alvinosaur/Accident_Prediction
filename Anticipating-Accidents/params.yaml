@@ -9,8 +9,11 @@ save_path: "models"
 ############## Train Parameters #################
 # Predefined constants (DO NOT CHANGE)
 img_dim: 4096
+n_frames: 100
+
+# Network Hyperparameters
 n_hidden_layers: 2  # number of hidden layers in LSTM
-hidden_feat_dim: 256   # dimension of hidden state in lSTM
+hidden_feat_dim: 512   # dimension of hidden state in lSTM
 lstm_dropout: 0.5  # dropout proportion  of outputs of each LSTM layer
 img_feat_dim: 256  # dimension of final image and object features
 obj_feat_dim: 256  # dimension of intermediary object features
