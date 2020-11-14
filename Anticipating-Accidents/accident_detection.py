@@ -32,7 +32,6 @@ Possible Bugs:
 - try alphas = torch.softmax(torch.multiply(alphas, mask), dim=1) line 104
 - prev_output, (hidden_state, cell_state) = self._lstm(
                 fusion, (hidden_state, cell_state))
-
 """
 
 
@@ -100,8 +99,8 @@ class Fattn(nn.Module):
         alphas = self.combined_linear(e)
         # calculate probability/importance of each K-1 object
         # mask out any features that are non-existent
-        # alphas = torch.softmax(torch.multiply(alphas, mask), dim=1)
-        alphas = torch.mul(torch.softmax(alphas, dim=1), mask)
+        alphas = torch.softmax(torch.mul(alphas, mask), dim=1)
+        # alphas = torch.mul(torch.softmax(alphas, dim=1), mask)
         # assert(torch.sum(alphas, axis=1) == ones)
         # probability of each obj feature should sum to 1 for a batch
         # but after post-multiplying by mask, this isn't true anymore

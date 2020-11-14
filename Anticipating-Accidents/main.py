@@ -72,7 +72,7 @@ if __name__ == "__main__":
 
     if args.train:
         model_utils.train_model(model, optimizer, scheduler, loss_fn,
-                                progress_dir, train_files[:1], train_files[:1],
+                                progress_dir, train_files[:15], eval_files,
                                 args.num_epochs, device)
     else:
         # run demo

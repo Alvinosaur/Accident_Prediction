@@ -40,6 +40,8 @@ n_frames = 100  # number of frame in each video
 ##################################################
 
 tf.enable_eager_execution()
+
+
 def parse_args():
     """Parse input arguments."""
     parser = argparse.ArgumentParser(description='accident_LSTM')
