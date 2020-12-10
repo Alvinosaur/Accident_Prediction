@@ -83,6 +83,25 @@ def build_model(x, y, keep):
     # using dropout in output of LSTM
     lstm_cell_dropout = tf.nn.rnn_cell.DropoutWrapper(
         lstm_cell, output_keep_prob=1 - keep[0])
+
+    B, T, N, D = x.shape
+    image_features = tf.reshape(x[:, :, 0, :].astype('float32'), [-1, D])
+    image_features = tf.matmul(image_features, weights['em_img']) + \
+        biases['em_img']
+
+    # replace below with CuDNNLSTM for GPU
+    # accepts input (B x T x D)
+    image_features = tf.reshape(image_features, [B, T, -1])
+    time_lstm = tf.keras.layers.LSTM(n_img_hidden, return_sequences=True)
+    key_linear = tf.keras.layers.Dense(n_img_hidden)
+    value_linear = tf.keras.layers.Dense(n_img_hidden)
+
+    # B x T x n_img_hidden
+    time_hidden = time_lstm(image_features)
+    # B x T x H
+    attention_key = key_linear(time_hidden)
+    attention_values = value_linear(time_hidden)
+
     # init LSTM parameters
     # lstm_cell.state_size = 2 * n_hidden because state_is_tuple = False
     # so
@@ -107,8 +126,19 @@ def build_model(x, y, keep):
             # permute n_steps and batch_size (n x b x h)
             X = tf.cast(tf.transpose(x[:, i, :, :], [1, 0, 2], ), tf.float32)
             # frame embedded
-            image = tf.matmul(X[0, :, :], weights['em_img']) + \
-                biases['em_img']  # 1 x b x h
+            image = image_features[:, i, :]
+            # apply time-attention to this
+            # (B x T x H) * (B x H x 1) -> (B x T x 1)
+            time_attention = tf.matmul(attention_key, tf.expand_dims(image, 2))
+            # (B x T x 1) -> (B x T)
+            time_attention = time_attention[:, :, 0]
+            time_attention = tf.nn.softmax(time_attention, 1)  # across time
+            # (B, T) -> (B, 1, T) * (B, T, value_size) -> (B, 1, value_size)
+            image = tf.matmul(tf.expand_dims(
+                time_attention, 1), attention_values)
+            # (B, 1, value_size) -> (B, value_size)
+            image = image[:, 0, :]  # squeeze
+
             # object embedded
             # (n_steps*batch_size, n_input) (n_detection-1)*B x 4096
             n_object = tf.reshape(X[1:n_detection, :, :], [-1, n_input])
@@ -127,8 +157,9 @@ def build_model(x, y, keep):
             # n x b x h
             e = tf.tanh(tf.matmul(h_prev, weights['att_wa']) + image_part)
             # the probability of each object
-            alphas = tf.multiply(tf.nn.softmax(tf.reduce_sum(
-                tf.matmul(e, brcst_w), 2), 0), zeros_object[i])
+            alphas = tf.multiply(
+                tf.nn.softmax(tf.reduce_sum(tf.matmul(e, brcst_w), 2), 0),
+                zeros_object[i])
             # weighting sum
             attention_list = tf.multiply(tf.expand_dims(alphas, 2), n_object)
             attention = tf.reduce_sum(attention_list, 0)  # b x h
@@ -149,12 +180,16 @@ def build_model(x, y, keep):
                 soft_pred = tf.reshape(tf.gather(tf.transpose(
                     tf.nn.softmax(pred), (1, 0)), 1), (batch_size, 1))
                 all_alphas = tf.expand_dims(alphas, 0)
+                all_time_attentions = tf.expand_dims(time_attention, 2)
             else:
                 temp_soft_pred = tf.reshape(tf.gather(tf.transpose(
                     tf.nn.softmax(pred), (1, 0)), 1), (batch_size, 1))
                 soft_pred = tf.concat([soft_pred, temp_soft_pred], 1)
                 temp_alphas = tf.expand_dims(alphas, 0)
                 all_alphas = tf.concat([all_alphas, temp_alphas], 0)
+                time_attention = tf.expand_dims(time_attention, 2)
+                all_time_attentions = tf.concat(
+                    [all_time_attentions, time_attention], 2)
 
             # positive example (exp_loss)
             # assume accident always at (n_frames - 1)th index
@@ -173,7 +208,7 @@ def build_model(x, y, keep):
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(
         loss / n_frames)  # Adam Optimizer
 
-    return x, keep, y, optimizer, loss, lstm_variables, soft_pred, all_alphas
+    return x, keep, y, optimizer, loss, lstm_variables, soft_pred, all_alphas, all_time_attentions
 
 
 def train():

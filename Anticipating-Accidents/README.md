@@ -1,5 +1,17 @@
-# Anticipating Accidents in Dashcam Videos
-By Fu-Hsiang Chan, Yu-Ting Chen, Yu Xiang, Min Sun.
+### Project Modification
+You can find our modified approach in the file:
+```
+accident_with_time_attention.ipynb
+```
+
+You can also find the scripts used to convert the authors' original data
+into COCO format:
+
+```
+python format_data_coco.py
+python coco_to_yolo.py
+```
+
 
 ### Introduction
 

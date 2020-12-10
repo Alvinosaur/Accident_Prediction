@@ -1,0 +1,122 @@
+  0%|          | 0/20 [00:00<?, ?it/s]Epoch: 1  done. Loss: 2.5179345308788235
+Epoch Time Cost: 568.69 s
+
+  5%|▌         | 1/20 [09:28<3:00:05, 568.69s/it]
+  Epoch: 2  done. Loss: 2.3048425205170155
+Epoch Time Cost: 483.25 s
+
+ 10%|█         | 2/20 [17:31<2:42:55, 543.06s/it]
+ Epoch: 3  done. Loss: 2.170042493608262
+Epoch Time Cost: 477.6 s
+Testing
+Eval Loss: 2.061
+
+ 15%|█▌        | 3/20 [28:47<2:45:10, 582.95s/it]
+   0%|          | 0/20 [00:00<?, ?it/s]
+   Epoch: 1  done. Loss: 1.976642892095778
+Epoch Time Cost: 591.71 s
+
+
+  5%|▌         | 1/20 [09:51<3:07:22, 591.71s/it]
+  Epoch: 2  done. Loss: 1.8729425967685764
+Epoch Time Cost: 511.96 s
+
+
+ 10%|█         | 2/20 [18:23<2:50:20, 567.79s/it]
+ Epoch: 3  done. Loss: 1.8217203514916553
+Epoch Time Cost: 493.84 s
+Testing
+Eval Loss: 1.777
+
+
+ 15%|█▌        | 3/20 [29:52<2:51:11, 604.18s/it]
+ Epoch: 4  done. Loss: 1.7786332296946692
+Epoch Time Cost: 534.13 s
+
+
+ 20%|██        | 4/20 [38:46<2:35:30, 583.17s/it]
+ Epoch: 5  done. Loss: 1.710608162198748
+Epoch Time Cost: 496.67 s
+
+
+ 25%|██▌       | 5/20 [47:03<2:19:18, 557.22s/it]
+ Epoch: 6  done. Loss: 1.6753575105515737
+Epoch Time Cost: 485.51 s
+Testing
+
+
+ 30%|███       | 6/20 [58:24<2:18:42, 594.45s/it]
+ Eval Loss: 1.717
+Epoch: 7  done. Loss: 1.652426593265836
+Epoch Time Cost: 538.07 s
+
+
+ 35%|███▌      | 7/20 [1:07:22<2:05:07, 577.53s/it]
+ Epoch: 8  done. Loss: 1.6120611728183807
+Epoch Time Cost: 488.69 s
+
+
+ 40%|████      | 8/20 [1:15:31<1:50:10, 550.88s/it]
+ Epoch: 9  done. Loss: 1.657839402698335
+Epoch Time Cost: 502.13 s
+Testing
+
+
+ 45%|████▌     | 9/20 [1:27:08<1:49:01, 594.68s/it]
+ Eval Loss: 1.742
+Epoch: 10  done. Loss: 1.555954084699116
+Epoch Time Cost: 537.89 s
+
+
+ 50%|█████     | 10/20 [1:36:06<1:36:16, 577.64s/it]
+ Epoch: 11  done. Loss: 1.562962980497451
+Epoch Time Cost: 500.81 s
+
+
+ 55%|█████▌    | 11/20 [1:44:27<1:23:11, 554.60s/it]
+ Epoch: 12  done. Loss: 1.4946737156973944
+Epoch Time Cost: 490.04 s
+Testing
+
+
+ 60%|██████    | 12/20 [1:55:51<1:19:09, 593.63s/it]
+ Eval Loss: 1.65
+Epoch: 13  done. Loss: 1.4778645216472568
+Epoch Time Cost: 537.01 s
+
+
+ 65%|██████▌   | 13/20 [2:04:48<1:07:16, 576.65s/it]
+ Epoch: 14  done. Loss: 1.4587216880586413
+Epoch Time Cost: 515.92 s
+
+
+ 70%|███████   | 14/20 [2:13:24<55:50, 558.43s/it]  
+ Epoch: 15  done. Loss: 1.402887059014941
+Epoch Time Cost: 492.79 s
+Testing
+Eval Loss: 1.63
+
+
+ 75%|███████▌  | 15/20 [2:24:55<49:50, 598.15s/it]
+ Epoch: 16  done. Loss: 1.3891503947121755
+Epoch Time Cost: 533.19 s
+
+
+ 80%|████████  | 16/20 [2:33:48<38:34, 578.67s/it]
+  0%|          | 0/20 [00:00<?, ?it/s]
+  Epoch: 1  done. Loss: 1.382428627543979
+Epoch Time Cost: 580.05 s
+
+
+
+  5%|▌         | 1/20 [09:40<3:03:40, 580.05s/it]
+  Epoch: 2  done. Loss: 1.3704276467126515
+Epoch Time Cost: 497.78 s
+
+
+
+ 10%|█         | 2/20 [17:57<2:46:36, 555.37s/it]
+ Epoch: 3  done. Loss: 1.3497452440715971
+Epoch Time Cost: 481.49 s
+Testing
+Eval Loss: 1.625

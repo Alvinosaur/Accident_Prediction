@@ -81,14 +81,14 @@ def parse_annotation_file(fname):
     return frame_infos
 
 
-def parse_videos(output, vid_folder, save_images=True):
+def parse_videos(output, vid_folder, max_num, save_images=True):
     image_id = 1
-    vid_names = sorted(os.listdir(vid_folder))
+    vid_names = sorted(os.listdir(vid_folder))[:max_num]
     for vi, vname in tqdm(enumerate(vid_names)):
 
-        print("EARLY STOPPING!!")
-        if vi == 2:
-            break
+        # print("EARLY STOPPING!!")
+        # if vi == 2:
+        #     break
 
         extension = os.path.splitext(vname)[1]
         if extension != ".mp4":
@@ -117,14 +117,15 @@ def parse_videos(output, vid_folder, save_images=True):
 
 
 def parse_annotations(output, annotation_folder, cur_annotation_fnames,
-                      category_to_id):
+                      category_to_id, max_num):
     image_id = 1
     annotation_id = 1
+    cur_annotation_fnames = cur_annotation_fnames[:max_num]
     for fname_i, fname in tqdm(enumerate(cur_annotation_fnames)):
         path = os.path.join(annotation_folder, fname)
 
-        if fname_i == 2:
-            break
+        # if fname_i == 2:
+        #     break
 
         # parse annotation labels
         per_frame_labels = parse_annotation_file(path)
@@ -145,7 +146,10 @@ def parse_annotations(output, annotation_folder, cur_annotation_fnames,
                         "image_id": image_id + fi,
                         "bbox": [left, top, width, height],
                         "category_id": category_to_id[obj_name],
-                        "id": annotation_id  # unique to every annotation
+                        "id": annotation_id,  # unique to every annotation
+                        "area": width * height,
+                        "segmentation": [],
+                        "iscrowd": False,
                     },
                 )
                 annotation_id += 1
@@ -165,6 +169,7 @@ if __name__ == "__main__":
                    base_vid_folder + "testing/positive"]
     vid_bounds = [(0, 455), (455, len(annotation_fnames))]
     category_to_id = dict()
+    train_output_categories = None
 
     # for dataset in [train, test]
     for di, vid_folder in enumerate(vid_folders):
@@ -179,8 +184,10 @@ if __name__ == "__main__":
             "categories": [],
             "annotations": []
         }
+        if train_output_categories is not None:
+            output["categories"] = train_output_categories
 
-        # make data folder
+            # make data folder
         dst_folder = f"data/images/{set_type}"
         try:
             # creating a folder named data
@@ -191,13 +198,20 @@ if __name__ == "__main__":
         except OSError:
             print('Error: Creating directory of data')
 
-        parse_videos(output, vid_folder, save_images=True)
-        print("ONLY DOING TRAINING IMAGES!!")
+        save_images = True
+        if di == 0:
+            max_num = 100
+        else:
+            max_num = 50
+        parse_videos(output, vid_folder,
+                     save_images=save_images, max_num=max_num)
 
         start, end = vid_bounds[di]
         cur_annotation_fnames = annotation_fnames[start:end]
         parse_annotations(output, annotation_folder,
-                          cur_annotation_fnames, category_to_id)
+                          cur_annotation_fnames, category_to_id, max_num=max_num)
+
+        train_output_categories = output["categories"]
 
         with open(output_json_path, 'w') as json_file:
             json.dump(output, json_file)
