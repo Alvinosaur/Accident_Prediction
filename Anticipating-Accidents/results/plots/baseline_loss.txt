@@ -1,0 +1,56 @@
+Epoch: 1  done. Loss: 2.5199099143346144
+Epoch Time Cost: 544.9 s
+Epoch: 2  done. Loss: 2.283255941527231
+Epoch Time Cost: 510.27 s
+Epoch: 3  done. Loss: 2.150664791228279
+Epoch Time Cost: 516.32 s
+Testing
+Eval Loss: 1.988
+Epoch: 4  done. Loss: 1.9596328205532498
+Epoch Time Cost: 529.33 s
+Epoch: 5  done. Loss: 1.8615469652508936
+Epoch Time Cost: 507.01 s
+Epoch: 6  done. Loss: 1.799761554173061
+Epoch Time Cost: 511.78 s
+Testing
+Eval Loss: 1.777
+Epoch: 7  done. Loss: 1.7217807497297017
+Epoch Time Cost: 531.64 s
+Epoch: 8  done. Loss: 1.6766828881369698
+Epoch Time Cost: 494.92 s
+Epoch: 9  done. Loss: 1.6413313763482231
+Epoch Time Cost: 519.11 s
+Testing
+Eval Loss: 1.794
+Epoch: 10  done. Loss: 1.5721947881910534
+Epoch Time Cost: 531.5 s
+Epoch: 11  done. Loss: 1.56431656905583
+Epoch Time Cost: 506.63 s
+Epoch: 12  done. Loss: 1.5552227504669673
+Epoch Time Cost: 498.47 s
+Testing
+Eval Loss: 1.698
+Epoch: 13  done. Loss: 1.5140174411592031
+Epoch Time Cost: 537.89 s
+Epoch: 14  done. Loss: 1.4795336276765854
+Epoch Time Cost: 484.26 s
+Epoch: 15  done. Loss: 1.3842688768629046
+Epoch Time Cost: 498.91 s
+Testing
+Eval Loss: 1.68
+Epoch: 16  done. Loss: 1.3597861286193607
+Epoch Time Cost: 531.66 s
+Epoch: 17  done. Loss: 1.344546749856737
+Epoch Time Cost: 558.63 s
+Epoch: 18  done. Loss: 1.306673466591608
+Epoch Time Cost: 513.75 s
+Testing
+Eval Loss: 1.67
+Epoch: 19  done. Loss: 1.250517460467323
+Epoch Time Cost: 529.64 s
+Epoch: 20  done. Loss: 1.302488065144372
+Epoch Time Cost: 505.7 s
+Epoch: 21  done. Loss: 1.2436237325744024
+Epoch Time Cost: 501.77 s
+Testing
+Eval Loss: 1.66
