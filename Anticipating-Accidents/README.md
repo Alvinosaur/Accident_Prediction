@@ -3,6 +3,14 @@ You can find our modified approach in the file:
 ```
 accident_with_time_attention.ipynb
 ```
+Our own re-implementation of the paper (in Pytorch) can be found in these files:
+```
+main.py
+model_utils.py
+utils.py
+accident_detection.py
+```
+
 
 You can also find the scripts used to convert the authors' original data
 into COCO format:

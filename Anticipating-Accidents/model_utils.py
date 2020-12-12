@@ -27,15 +27,12 @@ def train_epoch(model, loss_fn, files, batch_indices,
         # no accident: [1, 0]  --> class = 0
         # model output = [1-p(accident), p(accident)]
         batch_ys = torch.Tensor(batch_data['labels'][:, 1]).long().to(device)
-        batch_ys = batch_ys.unsqueeze(0)
-        # (N x B x 1)
-        batch_ys = batch_ys.repeat(n_frames, 1, 1)
 
         optimizer.zero_grad()   # .backward() accumulates gradients
 
         alphas, predictions = model(batch_xs)
         loss = loss_fn(predictions, batch_ys)
-        
+
         loss.backward()
         optimizer.step()
         avg_loss += loss.item()
@@ -57,10 +54,8 @@ def eval_model(model, loss_fn, files, device):
             # accident: [0, 1]  -->  class = 1
             # no accident: [1, 0]  --> class = 0
             # model output = [1-p(accident), p(accident)]
-            batch_ys = torch.Tensor(batch_data['labels'][:, 1]).long().to(device)
-            batch_ys = batch_ys.unsqueeze(0)
-            # (N x B x 1)
-            batch_ys = batch_ys.repeat(n_frames, 1, 1)
+            batch_ys = torch.Tensor(
+                batch_data['labels'][:, 1]).long().to(device)
 
             alphas, predictions = model(batch_xs)
             loss = loss_fn(predictions, batch_ys).detach()
@@ -72,8 +67,6 @@ def eval_model(model, loss_fn, files, device):
 
 def train_model(model, optimizer, scheduler, loss_fn, progress_dir,
                 train_files, eval_files, num_epochs, device):
-    # detect anomalies in calculating gradient
-    torch.autograd.set_detect_anomaly(True)
 
     if not os.path.exists(progress_dir):
         os.mkdir(progress_dir)
